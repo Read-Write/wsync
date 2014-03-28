@@ -8,6 +8,7 @@ installdir			= $(prefix)/$(wireddir)
 objdir				= @objdir@
 rundir				= @rundir@
 mandir				= @mandir@
+bindir			= @bindir@
 prefix				= @prefix@
 wireddir			= @wireddir@
 
@@ -132,7 +133,7 @@ install-wired:
 		$(INSTALL) -m 644 -o $(WD_USER) -g $(WD_GROUP) $(rundir)/etc/wsync.conf $(HOME)/.wsync/ ; \
 	fi
 
-	$(INSTALL) -m 755 -o $(WD_USER) -g $(WD_GROUP) $(rundir)/wsync /usr/local/bin/
+	$(INSTALL) -m 755 -o $(WD_USER) -g $(WD_GROUP) $(rundir)/wsync $(bindir)
 
 	@if [ -f .update ]; then \
 		echo ""; \

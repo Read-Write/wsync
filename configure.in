@@ -15,7 +15,7 @@ WI_CHECK_SVN_REVISION
 
 # These are used in the source code
 AC_DEFINE([WD_VERSION], ["AC_PACKAGE_VERSION"], [Application version])
-AC_DEFINE([WD_BUGREPORT], ["AC_PACKAGE_BUGREPORT"], [Maintainer's email address])
+AC_DEFINE([WD_BUGREPORT], ["AC_PACKAGE_BUGREPORT"], [Maintainers email address])
 
 # These are used in the Makefile
 AC_SUBST([WD_VERSION], ["AC_PACKAGE_VERSION"])

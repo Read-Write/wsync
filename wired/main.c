@@ -283,10 +283,6 @@ int main(int argc, const char **argv) {
 	wd_signals_init();
 	wd_block_signals();
 
-	wi_log_info(WI_STR("remote_url: %@"), remote_url);
-	wi_log_info(WI_STR("local_path: %@"), local_path);
-	wi_log_info(WI_STR("interval: %d"), interval);
-
 	if(remote_url && local_path) {
 		if(interval > 0)
 			wd_sync(remote_url, local_path, interval, true);
@@ -298,7 +294,7 @@ int main(int argc, const char **argv) {
 		wd_sync_start();
 	}
 
-	wi_log_info(WI_STR("Exiting..."));
+	wi_log_debug(WI_STR("Exiting..."));
 
 	wd_write_pid();
 	//wd_write_status(true);
