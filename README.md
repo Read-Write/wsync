@@ -1,10 +1,16 @@
-# WSync 1.0
+# Wsync 1.0
 
-Wsync is a files synchronization program for the Wired 2.0 protocol. It provides automatic files synchronization from several remote Wired directories to your local computer. It is written in ANSI-C and portable to many UNIX-like operating systems. It has the ability to run as a one-shot command-line tool, or as a backround daemon.
+Wsync is a files synchronization program for the Wired 2.0 protocol. It provides automatic files synchronization from several remote Wired server directories to your local computer. It is written in ANSI-C and portable to many UNIX-like operating systems. It has the ability to run as a one-shot command-line tool, or as a backround daemon.
 
-This read me file is essentially focused on the Debian-like installation procedure.
+This read me file is essentially focused on OSX and Debian-like installation instructions. Wsync is still young and has been quickly tested these two operating systems.
 
 ### Dependencies
+
+#### OSX
+
+* Install Xcode and/or Xcode command-line tools: [https://developer.apple.com/xcode/](https://developer.apple.com/xcode/)
+
+#### Linux
 
 * 	Install minimal development tools (including GCC, autotools, etc): 
 
@@ -102,7 +108,9 @@ You can also define running user and group in the `wsync.conf` file, in order to
 
 Once your rules are defined in the conf file, you have to run wsync with the `-D` argument:
 
-	wsync -D
+	/usr/local/bin/wsync -D
+	
+*NB: Ecxecutable fullpath is required on Linux.*
 	
 Wsync will create a PID file `~/.wsync/wsync.pid` which could help you to stop wsync running in daemon mode:
 
