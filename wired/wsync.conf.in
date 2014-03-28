@@ -1,0 +1,18 @@
+### SYNC #############################################################
+
+# Pairs of remote / local directories to sync. 
+# Example:
+#sync = wiredp7://admin:admin@localhost/Uploads /Users/nark/Uploads 30
+#sync = wiredp7://admin:admin@localhost/MyBox /Users/nark/MyBox 3600
+
+
+
+### SYSTEM ###########################################################
+
+# Name or id of the user that wsync should operate as.
+# (default "wsync")
+user = nark
+
+# Name or id of the group that wsync should operate as.
+# (default "daemon")
+group = daemon
