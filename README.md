@@ -28,15 +28,11 @@ This read me file is essentially focused on the Debian-like installation procedu
 
 ### Installation
 
-* 	Download archive: 
+* 	Download sources from GitHub.com: 
 
-		wget http://switch.dl.sourceforge.net/project/wired2/wsync/wsync.tar.gz
+		git clone https://github.com/Read-Write/wsync.git
 
-* 	Untar binary: 
-
-		tar -zxvf wsync.tar.gz
-
-* 	Move to unarchived directory: 
+* 	Move to cloned directory: 
 
 		cd wsync
 
@@ -52,7 +48,7 @@ This read me file is essentially focused on the Debian-like installation procedu
 
 		sudo make install
 
-Wsync will be install in `/usr/local/bin` directory.
+Wsync is installed in `/usr/local/bin` directory.
 
 ### How to use it
 
