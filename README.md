@@ -92,11 +92,11 @@ See below for more information about wsync commands:
 	    -u             do not chroot(2) to root path
 	    -v             display version information
 	    
-When running in the a terminal window, send a interruption singal (SIGINT) with the `^ + C` shortcut to terminate the program.
+When running in the a terminal window, send an interruption signal (SIGINT) with the `^ + C` shortcut to terminate the program.
 
 #### Daemon tool
 
-To run wsync as a daemon, you have to edit the `~/.wsync/wsync.conf` file. In this file you can defines several sync rules that wsync will read in order to automatically synchronize your files in the background.
+To run wsync as a daemon, you have first to edit the `~/.wsync/wsync.conf` file. In this file you can define several sync rules that wsync will read in order to automatically synchronize your files in the background.
 
 **Examples:**
 
@@ -131,11 +131,12 @@ This will shutdown the daemon and delete the PID file.
 * Two-ways files synchronization: new local files are pushed to the server 
 * Catch local FS events to synchonize the local folder with the server in real-time
 * A cross-platform GUI program to handle wsync and wsync.conf
+* Push some code to libwired in order to integrate wsync in servers and clients
 * Get rid of limitations…
 
 ### Known Limitations
 
-* Remote URL currently only decode spcae HTML character (%20)
+* Remote URL currently only decode HTML space character (%20)
 * Local path cannot contain spaces
 
 ### Author

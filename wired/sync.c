@@ -25,7 +25,7 @@
  * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
- 
+
 
 #include "sync.h"
 #include "settings.h"
@@ -41,7 +41,6 @@ static wi_p7_socket_t *			wc_connect(wi_url_t *);
 static wi_boolean_t				wc_login(wi_p7_socket_t *, wi_url_t *);
 static wi_p7_message_t *		wc_write_message_and_read_reply(wi_p7_socket_t *, wi_p7_message_t *, wi_string_t *);
 static wi_array_t *		 		wc_sync_list_directory_at_path(wi_p7_socket_t *, wi_string_t *, wi_boolean_t);
-static void						wd_sync_sync_timer(wi_timer_t *);
 
 static wi_integer_t				wd_sync_count;
 wi_p7_spec_t					*wc_spec;
@@ -121,9 +120,6 @@ void wd_sync_apply_settings(wi_set_t *changes) {
 		
 		wi_array_unlock(wd_syncs);
 	}
-		
-	// if(changed)
-	// 	wd_sync_start();
 }
 
 
@@ -198,7 +194,7 @@ void wd_sync(wi_string_t *remote_url, wi_string_t *local_path, wi_integer_t inte
 #pragma mark -
 
 void wd_sync_thread(wi_runtime_instance_t *argument) {
-	wi_pool_t			*pool;
+	wi_pool_t			*pool, *subpool;
 	wi_mutable_array_t  *arguments = argument;
 	wi_p7_socket_t		*socket;
 	wi_p7_message_t 	*message;
@@ -211,34 +207,38 @@ void wd_sync_thread(wi_runtime_instance_t *argument) {
 	wi_integer_t		synced_count, failed_count;
 	wi_boolean_t		is_dir;
 	wi_integer_t		interval;
-	
+
 	pool = wi_pool_init(wi_pool_alloc());
 
-	url 		= wi_url_with_string(wi_array_data_at_index(arguments, 0));
-	local_path	= wi_array_data_at_index(arguments, 1);
-	interval	= wi_number_int32(wi_array_data_at_index(arguments, 2));
-	remote_path = wi_url_path(url);
-
-	if(wi_string_contains_string(remote_path, WI_STR("%20"), 0))
-		remote_path = wi_string_by_replacing_string_with_string(remote_path, WI_STR("%20"), WI_STR(" "), 0);
-
-	remote_files = wi_autorelease(wi_array_init(wi_mutable_array_alloc()));
-	local_files  = wi_autorelease(wi_array_init(wi_mutable_array_alloc()));
-	diff_files   = wi_autorelease(wi_array_init(wi_mutable_array_alloc()));
-
 	while(wd_running) {
-		synced_count = 0;
-		failed_count = 0;
+		url 		= wi_url_with_string(wi_array_data_at_index(arguments, 0));
+		local_path	= wi_array_data_at_index(arguments, 1);
+		interval	= wi_number_int32(wi_array_data_at_index(arguments, 2));
+		remote_path = wi_url_path(url);
+
+		if(wi_string_contains_string(remote_path, WI_STR("%20"), 0))
+			remote_path = wi_string_by_replacing_string_with_string(remote_path, WI_STR("%20"), WI_STR(" "), 0);
+
+		remote_files = wi_mutable_array();
+		local_files  = wi_mutable_array();
+		diff_files   = wi_mutable_array();
 
 		socket = wc_connect(url);
 		
-		if(!socket)
+		if(!socket) {
+			wi_pool_drain(pool);
 			continue;
+		}
 		
 		if(!wc_login(socket, url)) {
 			wi_log_fatal(WI_STR("Could not login: %m"));
+
+			wi_pool_drain(pool);
 			continue;
 		}
+
+		synced_count = 0;
+		failed_count = 0;
 		
 		// check if local path directory exists
 		if(!wi_fs_path_exists(local_path, &is_dir) && !wi_fs_create_directory(local_path, 0777)) 
@@ -252,6 +252,7 @@ void wd_sync_thread(wi_runtime_instance_t *argument) {
 		remote_enumerator = wi_array_data_enumerator(remote_files);
 
 		while((message = wi_enumerator_next_data(remote_enumerator))) {
+
 			remote_sub_path = wi_p7_message_string_for_name(message, WI_STR("wired.file.path"));
 			wi_range_t range = wi_string_range_of_string(remote_sub_path, remote_path, 0);
 
@@ -261,10 +262,12 @@ void wd_sync_thread(wi_runtime_instance_t *argument) {
 				continue;
 			}
 
-			if(wi_is_equal(wi_string_path_extension(remote_sub_path), WS_FILE_TRANSFER_EXT))
+			if(wi_is_equal(wi_string_path_extension(remote_sub_path), WS_FILE_TRANSFER_EXT)) {
 				continue;
+			}
 
-			local_sub_path = wi_string_by_appending_path_component(local_path, wi_string_by_deleting_characters_in_range(remote_sub_path, range));
+			local_sub_path = wi_string_by_deleting_characters_in_range(remote_sub_path, range);
+			local_sub_path = wi_string_by_appending_path_component(local_path, local_sub_path);
 			
 			incompleted_path = wi_string_by_appending_path_extension(local_sub_path, WI_STR("WiredTransfer"));
 
@@ -292,10 +295,13 @@ void wd_sync_thread(wi_runtime_instance_t *argument) {
 
 		wi_log_info(WI_STR("Sync done: %d item(s) synchronized - %d item(s) failed"), synced_count, failed_count);
 
-		if(interval > 0)
+		wi_pool_drain(pool);
+
+		if(interval > 0) {
 			wi_thread_sleep(interval);
-		else
+		} else {
 			break;
+		}
 	}
 
 	wi_release(pool);
@@ -325,7 +331,7 @@ static wi_boolean_t wc_download_file(wi_p7_socket_t *socket, wi_p7_message_t *me
 	local_path = wi_string_by_appending_path_extension(local_path, WI_STR("WiredTransfer"));
 	offset = 0;
 
-	//check if local file already exist
+	// check if local file already exist
 	if(wi_fs_path_exists(completed_path, &is_dir) && !is_dir) {
 		wi_log_debug(WI_STR("local file already exist"));	
 
@@ -448,8 +454,9 @@ static wi_p7_socket_t * wc_connect(wi_url_t *url) {
 	
 	addresses = wi_host_addresses(wi_host_with_string(wi_url_host(url)));
 	
-	if(!addresses)
+	if(!addresses) {
 		return NULL;
+	}
 	
 	enumerator = wi_array_data_enumerator(addresses);
 	
@@ -621,25 +628,3 @@ static wi_array_t * wc_sync_list_directory_at_path(wi_p7_socket_t *socket, wi_st
 	return contents;
 }
 
-
-
-
-static void	wd_sync_sync_timer(wi_timer_t *timer) {
-	// wi_string_t *string;
-
-	// string = wi_timer_data(timer);
-
-	// if(wi_dictionary_contains_key(wd_running_sync_timers, string))
-	// 	return;
-
-	// wi_dictionary_wrlock(wd_running_sync_timers);
-
-	// wi_mutable_dictionary_set_data_for_key(wd_running_sync_timers, timer, string);
-
-	// wi_dictionary_unlock(wd_running_sync_timers);
-
-	// if(!wi_thread_create_thread(wd_sync_thread, string)) {
-	// 	wi_mutable_dictionary_remove_data_for_key(wd_running_sync_timers, string);
-	// 	wi_log_error(WI_STR("Could not create sync thread: %m"));
-	// }
-}

@@ -86,7 +86,7 @@ int main(int argc, const char **argv) {
 	wi_string_t				*string, *root_path, *user, *group, *remote_url, *local_path, *homepath, *wsyncpath;
 	uint32_t				uid, gid;
 	int						ch, facility, interval;
-	wi_boolean_t			test_config, daemonize, change_directory, switch_user, dir;
+	wi_boolean_t			test_config, daemonize, background, change_directory, switch_user, dir;
 
 	wi_initialize();
 	wi_load(argc, argv);
@@ -102,6 +102,7 @@ int main(int argc, const char **argv) {
 	wd_start_date			= wi_date_init(wi_date_alloc());
 	test_config				= false;
 	daemonize				= false;
+	background				= false;
 	change_directory		= true;
 	switch_user				= true;
 	wi_settings_config_path	= wi_string_init_with_cstring(wi_string_alloc(), WD_WSYNC_CONFIG_PATH);
@@ -233,26 +234,24 @@ int main(int argc, const char **argv) {
 
 	wi_log_open();
 
+	background	= (!remote_url && !local_path);
 	homepath 	= wi_user_home();
 	wsyncpath 	= wi_string_by_appending_path_component(homepath, WI_STR(WD_WSYNC_PATH));
 
 	wi_fs_create_directory(wsyncpath, 0700);
-
 	wd_config_path = wi_retain(wi_string_by_appending_path_component(homepath, WI_STR(WD_WSYNC_CONFIG_PATH)));
 	
 	wd_sync_initialize();
 	wd_settings_initialize();
 
-	if(!wi_fs_path_exists(wd_config_path, &dir)) {
+	if(!wi_fs_path_exists(wd_config_path, &dir))
 		wi_config_write_file(wd_config);
-	}
 
 	if(!wd_settings_read_config())
 		exit(1);
 
 	if(test_config) {
 		printf("Config OK\n");
-
 		exit(0);
 	}
 	
@@ -262,28 +261,30 @@ int main(int argc, const char **argv) {
 	
 	wi_log_info(WI_STR("Starting WSync version %s (%s)"), WD_VERSION, WI_REVISION);
 	
-	if(switch_user) {
-		uid = wi_config_uid_for_name(wd_config, WI_STR("user"));
-		gid = wi_config_uid_for_name(wd_config, WI_STR("group"));
-	
-		wi_switch_user(uid, gid);
-	}
-	
-	user = wi_user_name();
-	group = wi_group_name();
-	
-	if(user && group) {
-		wi_log_info(WI_STR("Operating as user %@ (%d), group %@ (%d)"),
-			user, wi_user_id(), group, wi_group_id());
-	} else {
-		wi_log_info(WI_STR("Operating as user %d, group %d"),
-			wi_user_id(), wi_group_id());
+	if(background) {
+		if(switch_user) {
+			uid = wi_config_uid_for_name(wd_config, WI_STR("user"));
+			gid = wi_config_uid_for_name(wd_config, WI_STR("group"));
+		
+			wi_switch_user(uid, gid);
+		}
+		
+		user = wi_user_name();
+		group = wi_group_name();
+		
+		if(user && group) {
+			wi_log_info(WI_STR("Operating as user %@ (%d), group %@ (%d)"),
+				user, wi_user_id(), group, wi_group_id());
+		} else {
+			wi_log_info(WI_STR("Operating as user %d, group %d"),
+				wi_user_id(), wi_group_id());
+		}
 	}
 
 	wd_signals_init();
 	wd_block_signals();
 
-	if(remote_url && local_path) {
+	if(!background) {
 		if(interval > 0)
 			wd_sync(remote_url, local_path, interval, true);
 		else
@@ -294,14 +295,12 @@ int main(int argc, const char **argv) {
 		wd_sync_start();
 	}
 
-	wi_log_debug(WI_STR("Exiting..."));
-
 	wd_write_pid();
 	//wd_write_status(true);
 		
 	wi_pool_drain(pool);
 	
-	if(interval > 0 || daemonize)
+	if(interval > 0 || background)
 		wd_signal_thread(NULL);
 	
 	wd_cleanup();
@@ -315,10 +314,6 @@ int main(int argc, const char **argv) {
 
 
 static void wd_cleanup(void) {
-	
-	// wd_server_cleanup();
-	// wd_database_close();
-	
 	wd_delete_pid();
 	//wd_delete_status();
 }

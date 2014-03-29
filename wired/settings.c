@@ -44,10 +44,14 @@ void wd_settings_initialize(void) {
 	
 	types = wi_dictionary_with_data_and_keys(
 		WI_INT32(WI_CONFIG_STRINGLIST),		WI_STR("sync"),
+		WI_INT32(WI_CONFIG_GROUP),			WI_STR("group"),
+		WI_INT32(WI_CONFIG_USER),			WI_STR("user"),
 		NULL);
 	
 	defaults = wi_dictionary_with_data_and_keys(
 		wi_array(),							WI_STR("sync"),
+		WI_STR("daemon"),					WI_STR("group"),
+		WI_STR("wsync"),					WI_STR("user"),
 		NULL);
 	
 	wd_config = wi_config_init_with_path(wi_config_alloc(), wd_config_path, types, defaults);
