@@ -105,8 +105,7 @@ int main(int argc, const char **argv) {
 	background				= false;
 	change_directory		= true;
 	switch_user				= true;
-	wi_settings_config_path	= wi_string_init_with_cstring(wi_string_alloc(), WD_WSYNC_CONFIG_PATH);
-	wd_config_path			= wi_string_init_with_cstring(wi_string_alloc(), WD_WSYNC_CONFIG_PATH);
+	wd_config_path			= NULL;
 	arguments				= wi_array_init(wi_mutable_array_alloc());
 	root_path				= WI_STR(".");
 
@@ -114,8 +113,11 @@ int main(int argc, const char **argv) {
 	remote_url				= NULL;
 	local_path				= NULL;
 
-	while((ch = getopt(argc, (char * const *) argv, "Dd:i:o:I:f:hn:L:ls:tuVvXx")) != -1) {
+	while((ch = getopt(argc, (char * const *) argv, "RDd:i:o:I:f:hn:L:ls:tuVvXx")) != -1) {
 		switch(ch) {
+			case 'R':
+				break;
+
 			case 'i':
 				remote_url = wi_string_with_cstring(optarg);
 				break;
@@ -138,9 +140,6 @@ int main(int argc, const char **argv) {
 				break;
 
 			case 'f':
-				wi_release(wi_settings_config_path);
-				wi_settings_config_path = wi_string_init_with_cstring(wi_string_alloc(), optarg);
-
 				wi_release(wd_config_path);
 				wd_config_path = wi_string_init_with_cstring(wi_string_alloc(), optarg);
 				break;
@@ -225,8 +224,6 @@ int main(int argc, const char **argv) {
 		}
 	}
 	
-	wi_release(arguments);
-	
 	// if(change_directory) {
 	// 	if(!wi_fs_change_directory(root_path))
 	// 		wi_log_fatal(WI_STR("Could not change directory to \"%@\": %m"), root_path);
@@ -239,7 +236,9 @@ int main(int argc, const char **argv) {
 	wsyncpath 	= wi_string_by_appending_path_component(homepath, WI_STR(WD_WSYNC_PATH));
 
 	wi_fs_create_directory(wsyncpath, 0700);
-	wd_config_path = wi_retain(wi_string_by_appending_path_component(homepath, WI_STR(WD_WSYNC_CONFIG_PATH)));
+
+	if(!wd_config_path)
+		wd_config_path = wi_retain(wi_string_by_appending_path_component(homepath, WI_STR(WD_WSYNC_CONFIG_PATH)));
 	
 	wd_sync_initialize();
 	wd_settings_initialize();
@@ -249,11 +248,6 @@ int main(int argc, const char **argv) {
 
 	if(!wd_settings_read_config())
 		exit(1);
-
-	if(test_config) {
-		printf("Config OK\n");
-		exit(0);
-	}
 	
 	wi_log_debug(WI_STR("Started as %@ %@"),
 		wi_process_path(wi_process()),
@@ -284,28 +278,29 @@ int main(int argc, const char **argv) {
 	wd_signals_init();
 	wd_block_signals();
 
-	if(!background) {
-		if(interval > 0)
-			wd_sync(remote_url, local_path, interval, true);
-		else
-			wd_sync(remote_url, local_path, interval, false);
-	}
-	else {
-		daemonize = true;
+	if(background) {
+		// start as a daemon, wsync will read config file
 		wd_sync_start();
+	} else {
+		// start a one-shot sync based on command arguments
+		wd_sync(arguments, true);
 	}
 
-	wd_write_pid();
-	//wd_write_status(true);
+	wi_release(arguments);
+
+	if(background)
+		wd_write_pid();
 		
 	wi_pool_drain(pool);
+
+	wd_signal_thread(NULL);
 	
-	if(interval > 0 || background)
-		wd_signal_thread(NULL);
-	
-	wd_cleanup();
+	wi_log_info(WI_STR("exit"));
+
+	if(background)
+		wd_cleanup();
+
 	wi_log_close();
-	
 	wi_release(pool);
 
 	return 0;
@@ -315,19 +310,19 @@ int main(int argc, const char **argv) {
 
 static void wd_cleanup(void) {
 	wd_delete_pid();
-	//wd_delete_status();
 }
 
 
 
 static void wd_usage(void) {
 	fprintf(stderr,
-"Usage: wsync [-Dllhtuv] [-i url] [-o path] [-I interval]\n\
+"Usage: wsync [-RDllhtuv] [-i url] [-o path] [-I interval]\n\
               [-f file] [-n lines] [-L file] [-s facility]\n\
 Options:\n\
-    -i url         wired URL of the remote directory to sync\n\
+    -i url         wired URL of the remote directory to synchronize\n\
     -o path        local path of the destination directory\n\
-    -I interval    time interval between two synchronization\n\
+    -I interval    time interval between two synchronizations\n\
+    -R             synchronize files recursively\n\
     -D             daemonize\n\
     -f file        set the config file to load\n\
     -h             display this message\n\

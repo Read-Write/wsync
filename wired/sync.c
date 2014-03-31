@@ -26,6 +26,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <signal.h>
 
 #include "sync.h"
 #include "settings.h"
@@ -41,6 +42,7 @@ static wi_p7_socket_t *			wc_connect(wi_url_t *);
 static wi_boolean_t				wc_login(wi_p7_socket_t *, wi_url_t *);
 static wi_p7_message_t *		wc_write_message_and_read_reply(wi_p7_socket_t *, wi_p7_message_t *, wi_string_t *);
 static wi_array_t *		 		wc_sync_list_directory_at_path(wi_p7_socket_t *, wi_string_t *, wi_boolean_t);
+static wi_array_t * 			wc_sync_parse_config_entry(wi_string_t *);
 
 static wi_integer_t				wd_sync_count;
 wi_p7_spec_t					*wc_spec;
@@ -56,6 +58,7 @@ void wd_sync_initialize() {
 	wd_running_syncs 		= wi_array_init(wi_mutable_array_alloc());
 
 	wd_running 				= false;
+	// load the wired specfication from a C header
 	wc_spec 				= wi_p7_spec_init_with_string(wi_p7_spec_alloc(), wi_string_with_cstring(
 #include "wired.xml.h"
 	), WI_P7_CLIENT);
@@ -78,7 +81,7 @@ void wd_sync_schedule() {
 
 void wd_sync_apply_settings(wi_set_t *changes) {
 	wi_enumerator_t		*enumerator;
-	wi_array_t			*syncs, *components;
+	wi_array_t			*syncs, *arguments;
 	wi_string_t			*string, *path;
 	wi_url_t			*url;
 	wi_boolean_t		changed = false;
@@ -92,32 +95,27 @@ void wd_sync_apply_settings(wi_set_t *changes) {
 			changed = true;
 		}
 		
+		// get an array of sync entries (string)
 		syncs = wi_config_stringlist_for_name(wd_config, WI_STR("sync"));
 		
 		if(syncs) {
 			enumerator = wi_array_data_enumerator(syncs);
 			
 			while((string = wi_enumerator_next_data(enumerator))) {
-				components = wi_string_components_separated_by_string(string, WI_STR(" "));
+				// check if sync entry is valid
+				arguments = wi_autorelease(wi_array_init_with_argument_string(wi_array_alloc(), string, -1));
 
-				if(wi_array_count(components) < 2) {
-					wi_log_error(WI_STR("Invalid sync entry \"%@\""), string);
+				if(wi_array_count(arguments) < 4) {
+					wi_log_error(WI_STR("Invalid sync entry, missing parameters \"%@\""), string);
 					continue;
 				}
 
-				url = wi_autorelease(wi_url_init_with_string(wi_url_alloc(), wi_array_data_at_index(components, 0)));
-
-				if(!wi_url_is_valid(url)) {
-					wi_log_error(WI_STR("Could not parse remote URL \"%@\""), string);
-					continue;
-				}
-
+				// add to local syncs
 				wi_mutable_array_add_data(wd_syncs, string);
 
 				changed = true;
 			}
 		}
-		
 		wi_array_unlock(wd_syncs);
 	}
 }
@@ -132,26 +130,21 @@ void wd_sync_apply_settings(wi_set_t *changes) {
 
 void wd_sync_start() {
 	wi_enumerator_t		*enumerator;
-	wi_string_t			*string, *url, *path;
-	wi_integer_t 		interval;
+	wi_string_t			*string;
 	wi_timer_t 			*timer;
-	wi_array_t			*components;
+	wi_array_t			*arguments;
 
 	wd_running = true;
 
 	enumerator = wi_array_data_enumerator(wd_syncs);
 
 	while((string = wi_enumerator_next_data(enumerator))) {
-		components = wi_string_components_separated_by_string(string, WI_STR(" "));
+		arguments = wi_autorelease(wi_array_init_with_argument_string(wi_array_alloc(), string, -1));
 
-		if(wi_array_count(components) == 0)
+		if(wi_array_count(arguments) < 4)
 			continue;
 
-		url  = wi_array_data_at_index(components, 0);
-		path = wi_array_data_at_index(components, 1);
-		interval = wi_string_int32(wi_array_data_at_index(components, 2));
-
-		wd_sync(url, path, interval, true);
+		wd_sync(arguments, true);
 	}
 }
 
@@ -166,15 +159,7 @@ void wd_sync_stop() {
 
 
 
-void wd_sync(wi_string_t *remote_url, wi_string_t *local_path, wi_integer_t interval, wi_boolean_t threaded) {
-	wi_mutable_array_t *arguments;
-
-	arguments = wi_mutable_array();
-
-	wi_mutable_array_add_data(arguments, remote_url);
-	wi_mutable_array_add_data(arguments, local_path);
-	wi_mutable_array_add_data(arguments, WI_INT32(interval));
-
+void wd_sync(wi_array_t *arguments, wi_boolean_t threaded) {
 	wd_running = true;
 
 	if(threaded) {
@@ -196,24 +181,52 @@ void wd_sync(wi_string_t *remote_url, wi_string_t *local_path, wi_integer_t inte
 void wd_sync_thread(wi_runtime_instance_t *argument) {
 	wi_pool_t			*pool, *subpool;
 	wi_mutable_array_t  *arguments = argument;
+	wi_string_t			*arg;
 	wi_p7_socket_t		*socket;
 	wi_p7_message_t 	*message;
-	wi_string_t			*sync;
-	wi_string_t			*remote_path, *local_path, *file_path, *path, *incompleted_path;
+	wi_string_t			*remote_path, *local_path, *incompleted_path;
 	wi_string_t 		*remote_sub_path, *local_sub_path;
-	wi_mutable_array_t 	*remote_files, *local_files, *diff_files;
-	wi_enumerator_t		*local_enumerator, *remote_enumerator, *diff_enumerator;
+	wi_mutable_array_t 	*remote_files, *local_files;
+	wi_enumerator_t		*args_enumerator, *remote_enumerator;
 	wi_url_t			*url;
+	wd_file_type_t 		file_type;
 	wi_integer_t		synced_count, failed_count;
-	wi_boolean_t		is_dir;
-	wi_integer_t		interval;
+	wi_boolean_t		is_dir, recursive = false;
+	wi_integer_t		interval = 0;
 
 	pool = wi_pool_init(wi_pool_alloc());
 
 	while(wd_running) {
-		url 		= wi_url_with_string(wi_array_data_at_index(arguments, 0));
-		local_path	= wi_array_data_at_index(arguments, 1);
-		interval	= wi_number_int32(wi_array_data_at_index(arguments, 2));
+		// parse arguments
+		args_enumerator = wi_array_data_enumerator(arguments);
+
+		while((arg = wi_enumerator_next_data(args_enumerator))) {
+			if(wi_is_equal(arg, WI_STR("-i"))) {
+				arg = wi_enumerator_next_data(args_enumerator);
+				url = wi_url_with_string(arg);
+			}
+			else if(wi_is_equal(arg, WI_STR("-o"))) {
+				arg = wi_enumerator_next_data(args_enumerator);
+				local_path = arg;
+			}
+			else if(wi_is_equal(arg, WI_STR("-I"))) {
+				arg = wi_enumerator_next_data(args_enumerator);
+				interval = wi_string_int32(arg);
+			}
+			else if(wi_is_equal(arg, WI_STR("-R"))) {
+				recursive = true;
+			}
+		}
+
+		if(!url) {
+			wi_log_fatal(WI_STR("Stopped. Missing arguments: -i"));
+			break;
+		} 
+		else if(!local_path) {
+			wi_log_fatal(WI_STR("Stopped. Missing arguments: -o"));
+			break;
+		}
+
 		remote_path = wi_url_path(url);
 
 		if(wi_string_contains_string(remote_path, WI_STR("%20"), 0))
@@ -221,7 +234,6 @@ void wd_sync_thread(wi_runtime_instance_t *argument) {
 
 		remote_files = wi_mutable_array();
 		local_files  = wi_mutable_array();
-		diff_files   = wi_mutable_array();
 
 		socket = wc_connect(url);
 		
@@ -245,13 +257,13 @@ void wd_sync_thread(wi_runtime_instance_t *argument) {
 				wi_log_fatal(WI_STR("Could not create directory %m"));	
 
 		// list the remote directory
-		remote_files = wc_sync_list_directory_at_path(socket, remote_path, true);
+		remote_files = wc_sync_list_directory_at_path(socket, remote_path, recursive);
 
 		wi_log_info(WI_STR("Sync started: %d item(s)"), wi_array_count(remote_files));
 
 		remote_enumerator = wi_array_data_enumerator(remote_files);
 
-		while((message = wi_enumerator_next_data(remote_enumerator))) {
+		while(wd_running && (message = wi_enumerator_next_data(remote_enumerator))) {
 
 			remote_sub_path = wi_p7_message_string_for_name(message, WI_STR("wired.file.path"));
 			wi_range_t range = wi_string_range_of_string(remote_sub_path, remote_path, 0);
@@ -268,10 +280,7 @@ void wd_sync_thread(wi_runtime_instance_t *argument) {
 
 			local_sub_path = wi_string_by_deleting_characters_in_range(remote_sub_path, range);
 			local_sub_path = wi_string_by_appending_path_component(local_path, local_sub_path);
-			
 			incompleted_path = wi_string_by_appending_path_extension(local_sub_path, WI_STR("WiredTransfer"));
-
-			wd_file_type_t 		file_type;
 
 			wi_p7_message_get_enum_for_name(message, &file_type, WI_STR("wired.file.type"));
 
@@ -297,14 +306,17 @@ void wd_sync_thread(wi_runtime_instance_t *argument) {
 
 		wi_pool_drain(pool);
 
-		if(interval > 0) {
-			wi_thread_sleep(interval);
-		} else {
+		if(interval == 0) {
+			wd_running = false;
 			break;
 		}
+
+		wi_thread_sleep(interval);
 	}
 
 	wi_release(pool);
+
+	kill(getpid(), SIGINT);
 }
 
 
@@ -333,7 +345,7 @@ static wi_boolean_t wc_download_file(wi_p7_socket_t *socket, wi_p7_message_t *me
 
 	// check if local file already exist
 	if(wi_fs_path_exists(completed_path, &is_dir) && !is_dir) {
-		wi_log_debug(WI_STR("local file already exist"));	
+		wi_log_debug(WI_STR("Skip, local file already exist: %@"), completed_path);	
 
 		if(wi_fs_stat_path(completed_path, &sb)) {
 			//compare remote and local file size, skip if 0 or equal
@@ -385,7 +397,7 @@ static wi_boolean_t wc_download_file(wi_p7_socket_t *socket, wi_p7_message_t *me
 	if(!wi_p7_socket_write_message(socket, 0.0, message))
 		wi_log_fatal(WI_STR("Could not write message for %@: %m"), remote_path);
 	
-	while(true) {
+	while(wd_running) {
 		message = wi_p7_socket_read_message(socket, 0.0);
 		
 		if(!message)
@@ -628,3 +640,19 @@ static wi_array_t * wc_sync_list_directory_at_path(wi_p7_socket_t *socket, wi_st
 	return contents;
 }
 
+
+
+
+
+static wi_array_t * wc_sync_parse_config_entry(wi_string_t *string) {
+	wi_mutable_array_t 	*args;
+	wi_regexp_t			*regexp;
+	wi_string_t			*match;
+
+	match	= NULL;
+	args 	= wi_mutable_array();
+
+
+
+	return args;
+}

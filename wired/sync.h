@@ -48,7 +48,7 @@ void								wd_sync_schedule(void);
 void 								wd_sync_start(void);
 void 								wd_sync_stop(void);
 
-void 								wd_sync(wi_string_t*, wi_string_t*, wi_integer_t, wi_boolean_t);
+void 								wd_sync(wi_array_t *, wi_boolean_t);
 
 void 								wd_sync_apply_settings(wi_set_t *);
 

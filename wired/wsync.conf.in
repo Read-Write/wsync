@@ -2,8 +2,8 @@
 
 # Pairs of remote / local directories to sync. 
 # Example:
-#sync = wiredp7://admin:admin@localhost/Uploads /Users/nark/Uploads 30
-#sync = wiredp7://admin:admin@localhost/MyBox /Users/nark/MyBox 3600
+#sync = -i wiredp7://admin:admin@localhost/Uploads -o /Users/nark/Uploads -I 30 -R
+#sync = -i "wiredp7://admin:admin@localhost/My Box" -o "/Users/nark/My Box" 3600 -I 30 -R
 
 
 

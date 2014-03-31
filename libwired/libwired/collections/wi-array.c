@@ -350,7 +350,7 @@ wi_array_t * wi_array_init_with_argument_string(wi_array_t *array, wi_string_t *
 
 	squote = dquote = bsquote = false;
 
-	while(*cstring) {
+	while(*cstring) {		
 		if(index < 0 || (index >= 0 && count != (wi_uinteger_t) index)) {
 			while(isspace(*cstring))
 				cstring++;

@@ -66,11 +66,13 @@ Command-line is the default running mode of wsync. All you have to do is to give
 
 You can also define an interval `-I` in seconds that indicates to wsync at what frequency it needs to synchronize remote files with local files.
 
+The `-R` argument indicates that files will be synchronized recursively through remote directories. Without it, wsync will only synchronize the first level of the remote URL directory.
+
 **Examples:**
 
-	wsync -i wiredp7://admin:*****@example.org/repo/wsync -o /home/joe/wsync
+	wsync -i wiredp7://admin:*****@example.org/repo/wsync -o /home/joe/wsync -R
 	
-	wsync -i wiredp7://admin:*****@example.org/repo/wsync -o /home/joe/wsync -I 3600
+	wsync -i wiredp7://admin:*****@example.org/repo/wsync -o /home/joe/wsync -R -I 3600
 	
 
 See below for more information about wsync commands:
@@ -81,6 +83,7 @@ See below for more information about wsync commands:
 	    -i url         wired URL of the remote directory to sync
 	    -o path        local path of the destination directory
 	    -I interval    time interval between two synchronization
+	    -R             synchronize files recursively
 	    -D             daemonize
 	    -f file        set the config file to load
 	    -h             display this message
@@ -96,15 +99,19 @@ When running in the a terminal window, send an interruption signal (SIGINT) with
 
 #### Daemon tool
 
-To run wsync as a daemon, you have first to edit the `~/.wsync/wsync.conf` file. In this file you can define several sync rules that wsync will read in order to automatically synchronize your files in the background.
+To run wsync as a daemon, you have first to edit the `~/.wsync/wsync.conf` file. In this file you can define several sync commands that wsync will read in order to automatically synchronize your files in the background.
 
 **Examples:**
 
-	sync = wiredp7://admin:*****@example.org/repo/wsync /home/joe/wsync
+	sync = -i wiredp7://admin:*****@example.org/repo/wsync -o /home/joe/wsync -I 3600 -R
 
-	sync = wiredp7://admin:*****@example.org/repo/wsync /home/joe/wsync 3600
+	sync = -i wiredp7://admin:*****@example.org/repo/wired -o /home/joe/wired -I 86400 -R
 	
-You can also define running user and group in the `wsync.conf` file, in order to start the program as root (ex: at boot) and let it switch to the user of your choice automatically using `setuid`.
+	sync = -i "wiredp7://admin:*****@example.org/private/My Music" -o "/home/joe/Music/My Music" -I 86400 -R
+	
+**NB:** Wsync supports usage of simple and double quotes to handle whitespaces in both URL and path (this also applies to the command-line mode).
+	
+You can also define running user and group in the `wsync.conf` file, in order to start the program as root (ex: at boot) and let it switch to the user of your choice automatically using `setuid` (experimental).
 
 Once your rules are defined in the conf file, you have to run wsync with the `-D` argument:
 
@@ -127,17 +134,12 @@ This will shutdown the daemon and delete the PID file.
 
 ### Planned
 
+* Fine thread pool management with queue and limits
 * Reload config without stoping the program using SIGHUP (when running as daemon)
 * Two-ways files synchronization: new local files are pushed to the server 
 * Catch local FS events to synchonize the local folder with the server in real-time
 * A cross-platform GUI program to handle wsync and wsync.conf
 * Push some code to libwired in order to integrate wsync in servers and clients
-* Get rid of limitations…
-
-### Known Limitations
-
-* Remote URL currently only decode HTML space character (%20)
-* Local path cannot contain spaces
 
 ### Author
 
