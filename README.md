@@ -2,7 +2,7 @@
 
 Wsync is a files synchronization program for the Wired 2.0 protocol. It provides automatic files synchronization from several remote Wired server directories to your local computer. It is written in ANSI-C and portable to many UNIX-like operating systems. It has the ability to run as a one-shot command-line tool, or as a backround daemon.
 
-This read me file is essentially focused on OSX and Debian-like installation instructions. Wsync is still young and has been quickly tested these two operating systems.
+This read me file is essentially focused on OSX and Debian-like installation instructions. Wsync is still young and has been quickly tested on these two operating systems.
 
 ### Dependencies
 
@@ -64,7 +64,7 @@ Wsync can be used both as a simple command-line program and as a background daem
 
 Command-line is the default running mode of wsync. All you have to do is to give it a remote input directory URL (`-i`) and a local output directory path (`-o`) as arguments and wsync will download the content of the remote directory to the local directory. 
 
-You can also define an interval `-I` in seconds that indicates to wsync at what frequency it needs to synchronize remote files with local files.
+You can also define an interval `-I` in seconds that indicates to wsync at what frequency it needs to synchronize remote files with local files. If no interval is defined, wsync will exit just after the download operation.
 
 The `-R` argument indicates that files will be synchronized recursively through remote directories. Without it, wsync will only synchronize the first level of the remote URL directory.
 
@@ -75,7 +75,7 @@ The `-R` argument indicates that files will be synchronized recursively through 
 	wsync -i wiredp7://admin:*****@example.org/repo/wsync -o /home/joe/wsync -R -I 3600
 	
 
-See below for more information about wsync commands:
+See below for more informations about wsync commands:
 
 	Usage: wsync [-Dllhtuv] [-i url] [-o path] [-I interval]
 	              [-f file] [-n lines] [-L file] [-s facility]
@@ -109,7 +109,7 @@ To run wsync as a daemon, you have first to edit the `~/.wsync/wsync.conf` file.
 	
 	sync = -i "wiredp7://admin:*****@example.org/private/My Music" -o "/home/joe/Music/My Music" -I 86400 -R
 	
-**NB:** Wsync supports usage of simple and double quotes to handle whitespaces in both URL and path (this also applies to the command-line mode).
+*NB: Wsync supports usage of simple and double quotes to handle whitespaces in both URL and path (this also applies to the command-line mode).*
 	
 You can also define running user and group in the `wsync.conf` file, in order to start the program as root (ex: at boot) and let it switch to the user of your choice automatically using `setuid` (experimental).
 

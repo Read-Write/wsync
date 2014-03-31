@@ -317,21 +317,19 @@ static void wd_cleanup(void) {
 static void wd_usage(void) {
 	fprintf(stderr,
 "Usage: wsync [-RDllhtuv] [-i url] [-o path] [-I interval]\n\
-              [-f file] [-n lines] [-L file] [-s facility]\n\
+              [-f config] [-n lines] [-L file] [-s facility]\n\
 Options:\n\
     -i url         wired URL of the remote directory to synchronize\n\
     -o path        local path of the destination directory\n\
     -I interval    time interval between two synchronizations\n\
     -R             synchronize files recursively\n\
     -D             daemonize\n\
-    -f file        set the config file to load\n\
+    -f config      set the config file to load\n\
     -h             display this message\n\
     -n lines       set limit on number of lines for -L\n\
     -L file        set alternate file for log output\n\
     -l             increase log level (can be used twice)\n\
     -s facility    set the syslog(3) facility\n\
-    -t             run syntax test on config\n\
-    -u             do not chroot(2) to root path\n\
     -v             display version information\n\
 \n\
 By Rafaël Warnault <%s>\n", WD_BUGREPORT);
